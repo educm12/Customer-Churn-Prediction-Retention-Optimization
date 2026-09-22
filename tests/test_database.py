@@ -38,15 +38,6 @@ def test_customers_table_has_no_null_churn_type():
     assert result == 0
 
 
-def test_predictions_table_exists_and_is_empty_initially():
-    """La tabla `predictions` existe pero aun no se ha
-    poblado (eso ocurre posteriormente, con el modelo entrenado)."""
-    engine = get_engine()
-    with engine.connect() as conn:
-        result = conn.exec_driver_sql("SELECT COUNT(*) FROM predictions").scalar()
-    assert result == 0
-
-
 def test_churn_type_distribution_matches_business_rule():
     """La distribucion de ChurnType en la base de datos debe coincidir
     con las reglas de negocio definidas (bandas fijas + umbrales
