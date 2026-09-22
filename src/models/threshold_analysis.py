@@ -82,7 +82,7 @@ def select_threshold_business_optimal(table: pd.DataFrame) -> float:
     """Threshold orientado a negocio: el que maximiza el beneficio neto
     esperado (`expected_net_profit`), equivalente a minimizar la
     perdida realizada + coste de campaña (`total_economic_impact`)."""
-    return float(table.loc[table["expected_net_profit"].idxmax(), "threshold"])
+    return float(table.loc[table["f1"].idxmax(), "threshold"])
 
 
 def summarize_threshold_selection(table: pd.DataFrame, min_recall: float = 0.80, min_precision: float = 0.50) -> pd.DataFrame:

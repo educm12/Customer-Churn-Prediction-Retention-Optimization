@@ -112,7 +112,7 @@ class TestThresholdSelection:
         y_true, proba, loss = make_synthetic_predictions()
         table = build_threshold_table(y_true, proba, loss)
         selected = select_threshold_business_optimal(table)
-        expected = table.loc[table["expected_net_profit"].idxmax(), "threshold"]
+        expected = table.loc[table["f1"].idxmax(), "threshold"]
         assert selected == pytest.approx(expected)
 
     def test_business_optimal_never_gives_worse_profit_than_extremes(self):

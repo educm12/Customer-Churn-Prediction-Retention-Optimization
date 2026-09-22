@@ -36,6 +36,7 @@ from sklearn.model_selection import train_test_split
 
 from src.business.prediction_service import score_customer
 from src.config import BUSINESS_THRESHOLD, CAMPAIGN_COST, ECONOMIC_LOSS, RANDOM_STATE, RETENTION_SUCCESS_PROB, TEST_SIZE
+from src.data.predictions_repository import save_prediction
 from src.features.feature_engineering import get_feature_target, load_customers_from_db
 from src.models.evaluate import compute_threshold_metrics, to_clean_arrays
 from src.models.explainability import build_shap_explainer, compute_shap_explanation, get_feature_importance
@@ -169,6 +170,7 @@ with tab_customer:
             "estimated_salary": float(customer_row["estimated_salary"]),
         }
         prediction = score_customer(features, customer_id=int(selected_customer_id), model=model)
+        save_prediction(prediction)
 
         proba_pct = prediction["churn_probability"] * 100
         st.metric("Churn Probability", f"{proba_pct:.1f}%")

@@ -59,9 +59,9 @@ OPTUNA_TRIALS_PATH = "reports/optuna_trials.csv"
 THRESHOLD_GRID = [round(t, 2) for t in np.arange(0.10, 0.95, 0.05)]  # 0.10, 0.15, ..., 0.90
 CONFUSION_MATRIX_THRESHOLDS = [0.20, 0.30, 0.40, 0.50, 0.60, 0.70]
 
-# Umbral de negocio activo: a partir de que probabilidad
-# predicha XGBoost decide contactar a un cliente. Se recalcula
-# dinamicamente con la función `select_threshold_business_optimal`; este
-# valor es solo el ultimo calculado, cacheado para reutilizarlo en la
-# API sin tener que reejecutar el analisis completo.
-BUSINESS_THRESHOLD = 0.15
+# Este es el threshold que maximica F1 por el que el modelo predice si el 
+# cliente se queda o no.
+# No es el threshold que decide si se envia la campaña al cliente, ya que eso
+# se decide si el beneficio neto:
+# RETENTION_SUCCESS_PROB * P(Churn) * ECONOMIC_LOSS >= CAMPAIGN_COST 
+BUSINESS_THRESHOLD = 0.65
