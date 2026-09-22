@@ -463,7 +463,29 @@ python -m src.data.ingestion
 python -m src.models.train
 ```
 
-## 7. Run the Application
+## 7. Analysis & Explainability
+
+Additional analysis can be generated with:
+
+```bash
+# Threshold optimization
+python -m src.models.threshold_analysis
+
+# Strategy comparison
+python -m src.business.strategy_comparison
+
+# SHAP + feature importance
+python -m src.models.explainability
+```
+
+Generated reports and visualizations are stored in:
+
+```text
+reports/
+```
+
+
+## 8. Run the Application
 
 The application can be run either locally or entirely with Docker Compose.
 
@@ -548,28 +570,6 @@ docker compose down
 PostgreSQL data is persisted through the `pgdata` Docker volume, so restarting the containers does not remove the database contents.
 ---
 
-# Analysis & Explainability
-
-Additional analysis can be generated with:
-
-```bash
-# Threshold optimization
-python -m src.models.threshold_analysis
-
-# Strategy comparison
-python -m src.business.strategy_comparison
-
-# SHAP + feature importance
-python -m src.models.explainability
-```
-
-Generated reports and visualizations are stored in:
-
-```text
-reports/
-```
-
----
 
 # Testing
 
