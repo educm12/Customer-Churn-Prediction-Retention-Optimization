@@ -427,7 +427,7 @@ customer-churn-ml/
 ## 1. Clone the repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/educm12/Customer-Churn-Prediction-Retention-Optimization
 cd customer-churn-ml
 ```
 
