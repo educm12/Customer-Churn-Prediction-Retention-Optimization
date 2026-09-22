@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data (raw/processed data not versioned; only structure kept via .gitkeep)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Models (trained artifacts not versioned)
+models/*.pkl
+models/*.json
+!models/.gitkeep
+
+# Env / secrets
+.env
+*.env.local
+!.env.example
+
+# PostgreSQL local data volume (si se usa bind mount en vez de volumen nombrado)
+pgdata/
+
+# Docker
+*.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Reports
+reports/*
+
+# Keep directories
+!reports/
+!reports/figures/
+!reports/figures/eda/
+!reports/figures/explainability/
+!reports/figures/strategy_comparison/
+!reports/figures/threshold_analysis/
+
+# Keep .gitkeep files
+!reports/.gitkeep
+!reports/figures/.gitkeep
+!reports/figures/eda/.gitkeep
+!reports/figures/explainability/.gitkeep
+!reports/figures/strategy_comparison/.gitkeep
+!reports/figures/threshold_analysis/.gitkeep
+
+# Ignorar todas las imágenes PNG dentro de reports y sus subcarpetas
+reports/**/*.png

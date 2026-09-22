@@ -1,0 +1,34 @@
+# Fase 1 - EDA y definicion del problema
+pandas==2.2.2
+numpy==1.26.4
+matplotlib==3.8.4
+seaborn==0.13.2
+jupyter==1.0.0
+
+# Fase 2 - PostgreSQL + Docker
+SQLAlchemy==2.0.30
+psycopg2-binary==2.9.9
+python-dotenv==1.0.1
+pytest==8.2.0
+
+# Fase 3 - Feature Engineering
+scikit-learn==1.5.0
+
+# Fase 5 - XGBoost
+xgboost==2.1.1
+joblib==1.4.2
+optuna==4.0.0
+
+# Fase 8 - Explainability
+shap==0.46.0
+
+# Fase 9 - FastAPI
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+httpx==0.27.2
+
+# Fase 10 - Streamlit
+streamlit==1.38.0
+
+# Las dependencias de fases posteriores (xgboost, scikit-learn, fastapi,
+# streamlit, shap, etc.) se iran añadiendo aqui progresivamente.
