@@ -17,6 +17,8 @@ contacta:
     - XGBoost: contacta a quien supera el threshold de negocio elegido
       (el que maximiza expected_net_profit sobre el test
       set), aplicado a la probabilidad PREDICHA (out-of-sample).
+    - Otro XGBoost que contacta quien supere el threshold que maximiza
+      F1 score.
 
 Por que no usar la probabilidad predicha tambien como P(Churn) en la
 formula economica de XGBoost (en vez de `exited` real): mezclar
@@ -49,7 +51,7 @@ from src.business.campaign import campaign_everyone, campaign_nobody, simulate_c
 from src.config import RANDOM_STATE, TEST_SIZE
 from src.features.feature_engineering import get_feature_target, load_customers_from_db
 from src.models.predict import load_model
-from src.models.threshold_analysis import build_threshold_table, select_threshold_business_optimal
+from src.models.threshold_analysis import build_threshold_table, select_threshold_business_optimal, select_threshold_max_f1
 
 
 def load_test_set_with_predictions():
@@ -75,7 +77,8 @@ def compare_strategies(
     y_true: pd.Series,
     churn_probability_model: pd.Series,
     economic_loss: pd.Series,
-    xgboost_threshold: float,
+    xgboost_threshold_business: float,
+    xgboost_threshold_f1: float
 ) -> pd.DataFrame:
     """Compara Campaign Everyone / Campaign Nobody / XGBoost con
     `simulate_campaign_strategy` de forma identica para las tres. El
@@ -88,7 +91,10 @@ def compare_strategies(
     strategies = {
         "Campaign Everyone": campaign_everyone(n),
         "Campaign Nobody": campaign_nobody(n),
-        f"XGBoost (threshold={xgboost_threshold:.2f})": (churn_probability_model >= xgboost_threshold).reset_index(
+        f"XGBoost (threshold={xgboost_threshold_business:.2f})": (churn_probability_model >= xgboost_threshold_business).reset_index(
+            drop=True
+        ),
+        f"XGBoost (threshold={xgboost_threshold_f1:.2f})": (churn_probability_model >= xgboost_threshold_f1).reset_index(
             drop=True
         ),
     }
@@ -111,19 +117,36 @@ def compare_strategies(
 
 
 if __name__ == "__main__":
-    os.makedirs("reports/figures", exist_ok=True)
+    os.makedirs("reports/figures/strategy_comparison", exist_ok=True)
 
     print("Reconstruyendo test set y prediciendo con el modelo entrenado...")
     y_test, churn_probability, economic_loss = load_test_set_with_predictions()
 
     print("Recalculando el threshold de negocio optimo sobre el test set...")
-    threshold_table = build_threshold_table(y_test, churn_probability, economic_loss)
+    threshold_table = build_threshold_table(
+        y_test,
+        churn_probability,
+        economic_loss
+    )
+
     best_threshold = select_threshold_business_optimal(threshold_table)
     print(f"Threshold de negocio elegido: {best_threshold:.2f}")
 
-    comparison = compare_strategies(y_test, churn_probability, economic_loss, best_threshold)
+    print("Recalculando el threshold de F1 optimo sobre el test set...")
+    best_threshold_f1 = select_threshold_max_f1(threshold_table)
+    print(f"Threshold de F1 elegido: {best_threshold_f1:.2f}")
+
+    comparison = compare_strategies(
+        y_test,
+        churn_probability,
+        economic_loss,
+        best_threshold,
+        best_threshold_f1
+    )
+
     pd.set_option("display.width", 160)
     pd.set_option("display.max_columns", None)
+
     print("\n=== Comparacion de estrategias (test set, 2.000 clientes) ===")
     print(comparison)
 
@@ -131,9 +154,19 @@ if __name__ == "__main__":
     print("\nGuardado en reports/strategy_comparison.csv")
 
     # --- Graficas comparativas ---
-    strategy_names = list(comparison.index)
-    short_names = ["Campaign\nEveryone", "Campaign\nNobody", "XGBoost"]
-    colors = ["#C44E52", "#8C8C8C", "#55A868"]
+    short_names = [
+        "Campaign\nEveryone",
+        "Campaign\nNobody",
+        "XGBoost\nBusiness",
+        "XGBoost\nF1",
+    ]
+
+    colors = [
+        "#C44E52",
+        "#8C8C8C",
+        "#55A868",
+        "#4C72B0",
+    ]
 
     bar_specs = [
         ("expected_net_profit", "Beneficio Neto Esperado (EUR)", "strategy_net_profit.png"),
@@ -143,21 +176,42 @@ if __name__ == "__main__":
         ("n_contacted", "Clientes Contactados", "strategy_contacted.png"),
         ("expected_retained_customers", "Clientes Retenidos (esperado)", "strategy_retained.png"),
     ]
+
     for col, title, filename in bar_specs:
-        fig, ax = plt.subplots(figsize=(6.5, 4.5))
+        fig, ax = plt.subplots(figsize=(7, 4.5))
+
         values = comparison[col].values
-        bars = ax.bar(short_names, values, color=colors)
+
+        bars = ax.bar(
+            short_names,
+            values,
+            color=colors
+        )
+
         ax.set_title(title)
         ax.axhline(0, color="black", linewidth=0.8)
         ax.grid(axis="y", alpha=0.3)
+
         for bar, val in zip(bars, values):
             ax.annotate(
-                f"{val:,.0f}", xy=(bar.get_x() + bar.get_width() / 2, val),
-                xytext=(0, 5 if val >= 0 else -15), textcoords="offset points",
-                ha="center", fontsize=9,
+                f"{val:,.0f}",
+                xy=(bar.get_x() + bar.get_width() / 2, val),
+                xytext=(0, 5 if val >= 0 else -15),
+                textcoords="offset points",
+                ha="center",
+                fontsize=9,
             )
+
         plt.tight_layout()
-        plt.savefig(f"reports/figures/strategy_comparison/{filename}", dpi=120)
+
+        plt.savefig(
+            f"reports/figures/strategy_comparison/{filename}",
+            dpi=120
+        )
+
         plt.close(fig)
 
-    print("Graficas guardadas en reports/figures/strategy_comparison/ (strategy_*.png)")
+    print(
+        "Graficas guardadas en "
+        "reports/figures/strategy_comparison/ (strategy_*.png)"
+    )

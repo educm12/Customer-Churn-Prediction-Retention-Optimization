@@ -13,7 +13,7 @@ Sobre la decision de campaña ("campaign") en este servicio
 Aqui se recomienda campaña si el beneficio esperado de ESE cliente concreto es positivo
 (`expected_net_profit > 0`), calculado con su propio `economic_loss`
 segun su `ChurnType`. Esto es mas granular que el threshold GLOBAL
-optimizado para maximizar 'net profit' (`BUSINESS_THRESHOLD`, un unico corte de
+optimizado para maximizar 'F1' (`OPERATIVE_THRESHOLD`, un unico corte de
 probabilidad para toda la cartera): el punto de equilibrio real de un
 cliente depende de cuanto se perderia si se va, no solo de su
 probabilidad de abandono. Por ejemplo, con la economia actual
@@ -23,7 +23,7 @@ probabilidad es ~8.3% para un `hardchurn` pero ~33.3% para un
 abandono para que compense contactarlo.
 
 `churn_prediction` (0/1), en cambio, SI usa el threshold operativo
-global (`BUSINESS_THRESHOLD`) para mantener coherencia con las
+global (`OPERATIVE_THRESHOLD`) para mantener coherencia con las
 metricas de clasificacion reportadas (Precision,mRecall, etc., 
 que se calcularon con ese unico corte). Por eso`churn_prediction` y 
 `campaign` pueden diferir para un mismo cliente:
@@ -37,7 +37,7 @@ from typing import Optional
 import pandas as pd
 
 from src.business.churn_impact import add_churn_type_columns
-from src.config import BUSINESS_THRESHOLD, CAMPAIGN_COST, RETENTION_SUCCESS_PROB
+from src.config import OPERATIVE_THRESHOLD, CAMPAIGN_COST, RETENTION_SUCCESS_PROB
 from src.models.predict import load_model, predict_churn_probability
 
 # Columnas (snake_case) que el modelo final espera, en el mismo orden
@@ -67,7 +67,7 @@ def score_customer(
     features: dict,
     customer_id: Optional[int] = None,
     model=None,
-    threshold: float = BUSINESS_THRESHOLD,
+    threshold: float = OPERATIVE_THRESHOLD,
 ) -> dict:
     """Calcula la prediccion completa (riesgo + impacto economico +
     decision de campaña) para UN cliente.
@@ -86,7 +86,7 @@ def score_customer(
     threshold:
         Threshold operativo para `churn_prediction`. Por defecto, el
         threshold de negocio global que maximiza el beneficio neto de la cartera
-        (`BUSINESS_THRESHOLD` en `src/config.py`).
+        (`OPERATIVE_THRESHOLD` en `src/config.py`).
     """
     model = model if model is not None else load_model()
 

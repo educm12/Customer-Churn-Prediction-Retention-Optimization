@@ -35,7 +35,7 @@ from sklearn.metrics import precision_recall_curve, roc_auc_score, roc_curve
 from sklearn.model_selection import train_test_split
 
 from src.business.prediction_service import score_customer
-from src.config import BUSINESS_THRESHOLD, CAMPAIGN_COST, ECONOMIC_LOSS, RANDOM_STATE, RETENTION_SUCCESS_PROB, TEST_SIZE
+from src.config import OPERATIVE_THRESHOLD, CAMPAIGN_COST, ECONOMIC_LOSS, RANDOM_STATE, RETENTION_SUCCESS_PROB, TEST_SIZE
 from src.data.predictions_repository import save_prediction
 from src.features.feature_engineering import get_feature_target, load_customers_from_db
 from src.models.evaluate import compute_threshold_metrics, to_clean_arrays
@@ -115,7 +115,7 @@ st.sidebar.divider()
 st.sidebar.metric("Total de clientes", f"{len(customers_df):,}")
 st.sidebar.metric("Tasa de churn real (cartera)", f"{customers_df['exited'].mean():.1%}")
 st.sidebar.caption(
-    f"Threshold operativo actual: **{BUSINESS_THRESHOLD}** · "
+    f"Threshold operativo actual: **{OPERATIVE_THRESHOLD}** · "
     f"Coste campaña: **{CAMPAIGN_COST}€** · "
     f"P(retencion): **{RETENTION_SUCCESS_PROB:.0%}**  \n"
     "(configurables en `src/config.py`)"
@@ -268,7 +268,7 @@ with tab_eval:
 
     st.divider()
     st.subheader("Analisis de threshold (interactivo)")
-    threshold = st.slider("Threshold de clasificacion", 0.05, 0.95, float(BUSINESS_THRESHOLD), 0.05)
+    threshold = st.slider("Threshold de clasificacion", 0.05, 0.95, float(OPERATIVE_THRESHOLD), 0.05)
     metrics = compute_threshold_metrics(y_test, churn_probability_test.values, threshold)
 
     m1, m2, m3, m4, m5 = st.columns(5)

@@ -64,4 +64,5 @@ CONFUSION_MATRIX_THRESHOLDS = [0.20, 0.30, 0.40, 0.50, 0.60, 0.70]
 # No es el threshold que decide si se envia la campaña al cliente, ya que eso
 # se decide si el beneficio neto:
 # RETENTION_SUCCESS_PROB * P(Churn) * ECONOMIC_LOSS >= CAMPAIGN_COST 
-BUSINESS_THRESHOLD = 0.65
+OPERATIVE_THRESHOLD = 0.65  # maximiza F1
+BUSINESS_THRESHOLD = 0.15   # maximiza net profit
