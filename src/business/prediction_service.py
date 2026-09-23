@@ -81,8 +81,7 @@ def score_customer(
         gender), en snake_case.
     customer_id:
         Opcional; se incluye en la respuesta y se usa como referencia
-        si la prediccion se persiste despues (ver
-        `src/data/predictions_repository.py`).
+        si la prediccion se persiste despues.
     threshold:
         Threshold operativo para `churn_prediction`. Por defecto, el
         threshold de negocio global que maximiza el beneficio neto de la cartera

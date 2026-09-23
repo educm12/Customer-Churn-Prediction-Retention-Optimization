@@ -1,18 +1,31 @@
 """
 Dashboard de Streamlit.
 
-Reutiliza TODA la logica ya construida en fases anteriores — no
-duplica nada:
-    - src.business.prediction_service.score_customer
-    - src.models.explainability                         
-    - src.models.evaluate                               
-    - src.business.campaign / threshold_analysis        
+La ficha de cliente y la prediccion (Tab "Cliente") ya NO acceden a la
+base de datos ni al modelo en local: hablan por HTTP con los routers
+de FastAPI (api/routes/customers.py, predict.py, health.py), igual
+que haria cualquier otro cliente de la API:
+    - GET  /customers/{id}              -> obtener_cliente()
+    - GET  /customers/{id}/prediction   -> obtener_prediccion_cliente()
+    - POST /predict                     -> predecir()
+    - GET  /health                      -> comprobar_salud()
+
+Requiere que el backend este arrancado (uvicorn api.main:app) y
+accesible en BACKEND_URL (por defecto http://localhost:8000).
+
+El resto de tabs (Explicabilidad, Evaluacion del Modelo, Analisis de
+Negocio) siguen usando el modelo/datos en local porque no hay
+endpoints para SHAP, curvas ROC/PR, threshold analysis ni los reports
+CSV -- solo se expuso la logica de scoring de un cliente:
+    - src.models.explainability
+    - src.models.evaluate
     - reports/*.csv ya generados por los scripts de cada fase
 
 Ejecucion:
-    streamlit run dashboard/app.py
+    BACKEND_URL=http://localhost:8000 streamlit run dashboard/app.py
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -29,20 +42,53 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import requests
 import shap
 import streamlit as st
 from sklearn.metrics import precision_recall_curve, roc_auc_score, roc_curve
 from sklearn.model_selection import train_test_split
 
-from src.business.prediction_service import score_customer
 from src.config import OPERATIVE_THRESHOLD, CAMPAIGN_COST, ECONOMIC_LOSS, RANDOM_STATE, RETENTION_SUCCESS_PROB, TEST_SIZE
-from src.data.predictions_repository import save_prediction
 from src.features.feature_engineering import get_feature_target, load_customers_from_db
 from src.models.evaluate import compute_threshold_metrics, to_clean_arrays
 from src.models.explainability import build_shap_explainer, compute_shap_explanation, get_feature_importance
 from src.models.predict import load_model, predict_churn_probability
 
 st.set_page_config(page_title="Customer Churn Dashboard", page_icon="🏦", layout="wide")
+
+# ============================================================
+# Cliente HTTP del backend FastAPI (api/routes/{customers,predict,health}.py)
+# ============================================================
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
+
+
+def obtener_cliente(customer_id: int) -> dict:
+    """GET /customers/{customer_id}."""
+    resp = requests.get(f"{BACKEND_URL}/customers/{customer_id}", timeout=30)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def obtener_prediccion_cliente(customer_id: int) -> dict:
+    """GET /customers/{customer_id}/prediction."""
+    resp = requests.get(f"{BACKEND_URL}/customers/{customer_id}/prediction", timeout=30)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def predecir(features: dict, customer_id: int | None = None) -> dict:
+    """POST /predict -- puntua un cliente (existente o hipotetico)."""
+    payload = {**features, "customer_id": customer_id}
+    resp = requests.post(f"{BACKEND_URL}/predict", json=payload, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def comprobar_salud() -> dict:
+    """GET /health -- conexion a PostgreSQL y modelo cargado en el backend."""
+    resp = requests.get(f"{BACKEND_URL}/health", timeout=10)
+    resp.raise_for_status()
+    return resp.json()
 
 
 # ============================================================
@@ -121,6 +167,19 @@ st.sidebar.caption(
     "(configurables en `src/config.py`)"
 )
 
+st.sidebar.divider()
+try:
+    health = comprobar_salud()
+    if health["status"] == "ok":
+        st.sidebar.success(f"Backend OK ({BACKEND_URL})")
+    else:
+        st.sidebar.warning(
+            f"Backend degradado — DB: {'✅' if health['database'] else '❌'} · "
+            f"Modelo: {'✅' if health['model_loaded'] else '❌'}"
+        )
+except requests.RequestException as exc:
+    st.sidebar.error(f"No se pudo contactar con el backend ({BACKEND_URL}): {exc}")
+
 # ============================================================
 # Tabs principales
 # ============================================================
@@ -132,46 +191,54 @@ tab_customer, tab_explain, tab_eval, tab_business = st.tabs(
 # TAB 1: Cliente
 # ------------------------------------------------------------------
 with tab_customer:
+    try:
+        cliente = obtener_cliente(int(selected_customer_id))
+        prediction = obtener_prediccion_cliente(int(selected_customer_id))
+    except requests.RequestException as exc:
+        st.error(f"No se pudo obtener el cliente/prediccion desde el backend: {exc}")
+        st.stop()
+
+    # Features en el formato que espera PredictRequest / lo que usa
+    # SHAP mas abajo (Tab 2), reconstruidas a partir de la respuesta
+    # del backend en vez de leerlas directamente del DataFrame local.
+    features = {
+        "credit_score": int(cliente["credit_score"]),
+        "geography": cliente["geography"],
+        "gender": cliente["gender"],
+        "age": int(cliente["age"]),
+        "tenure": int(cliente["tenure"]),
+        "balance": float(cliente["balance"]),
+        "num_of_products": int(cliente["num_of_products"]),
+        "has_cr_card": bool(cliente["has_cr_card"]),
+        "is_active_member": bool(cliente["is_active_member"]),
+        "estimated_salary": float(cliente["estimated_salary"]),
+    }
+
     col_info, col_pred = st.columns([1, 1])
 
     with col_info:
         st.subheader("Informacion del cliente")
         info_rows = [
-            ("Geography", customer_row["geography"]),
-            ("Gender", customer_row["gender"]),
-            ("Age", int(customer_row["age"])),
-            ("Credit Score", int(customer_row["credit_score"])),
-            ("Balance", f"{float(customer_row['balance']):,.2f} €"),
-            ("Estimated Salary", f"{float(customer_row['estimated_salary']):,.2f} €"),
-            ("Num of Products", int(customer_row["num_of_products"])),
-            ("Tenure", f"{int(customer_row['tenure'])} años"),
-            ("Is Active Member", "Si" if customer_row["is_active_member"] else "No"),
-            ("Has Credit Card", "Si" if customer_row["has_cr_card"] else "No"),
+            ("Geography", cliente["geography"]),
+            ("Gender", cliente["gender"]),
+            ("Age", int(cliente["age"])),
+            ("Credit Score", int(cliente["credit_score"])),
+            ("Balance", f"{float(cliente['balance']):,.2f} €"),
+            ("Estimated Salary", f"{float(cliente['estimated_salary']):,.2f} €"),
+            ("Num of Products", int(cliente["num_of_products"])),
+            ("Tenure", f"{int(cliente['tenure'])} años"),
+            ("Is Active Member", "Si" if cliente["is_active_member"] else "No"),
+            ("Has Credit Card", "Si" if cliente["has_cr_card"] else "No"),
         ]
         for label, value in info_rows:
             st.write(f"**{label}:** {value}")
 
-        if customer_row["exited"] is not None:
-            actual_label = "Abandono" if customer_row["exited"] else "Permanece"
+        if cliente["exited"] is not None:
+            actual_label = "Abandono" if cliente["exited"] else "Permanece"
             st.info(f"Desenlace real (historico): **{actual_label}**")
 
     with col_pred:
         st.subheader("Prediccion")
-        features = {
-            "credit_score": int(customer_row["credit_score"]),
-            "geography": customer_row["geography"],
-            "gender": customer_row["gender"],
-            "age": int(customer_row["age"]),
-            "tenure": int(customer_row["tenure"]),
-            "balance": float(customer_row["balance"]),
-            "num_of_products": int(customer_row["num_of_products"]),
-            "has_cr_card": bool(customer_row["has_cr_card"]),
-            "is_active_member": bool(customer_row["is_active_member"]),
-            "estimated_salary": float(customer_row["estimated_salary"]),
-        }
-        prediction = score_customer(features, customer_id=int(selected_customer_id), model=model)
-        save_prediction(prediction)
-
         proba_pct = prediction["churn_probability"] * 100
         st.metric("Churn Probability", f"{proba_pct:.1f}%")
         st.progress(min(max(prediction["churn_probability"], 0.0), 1.0))
@@ -195,6 +262,75 @@ with tab_customer:
             st.success("✅ Recomendacion: ENVIAR CAMPAÑA (beneficio esperado positivo)")
         else:
             st.warning("⛔ Recomendacion: NO enviar campaña (beneficio esperado negativo)")
+
+        st.divider()
+        st.subheader("🧪 Simular cliente hipotetico")
+        st.caption("Prueba /predict con datos manuales, sin que el cliente exista en la BD.")
+        with st.form("simulador_predict"):
+            sf1, sf2, sf3 = st.columns(3)
+            sim_credit_score = sf1.number_input("Credit Score", 300, 900, int(cliente["credit_score"]))
+            sim_geography = sf2.selectbox(
+                "Geography", ["France", "Germany", "Spain"],
+                index=["France", "Germany", "Spain"].index(cliente["geography"])
+                if cliente["geography"] in ["France", "Germany", "Spain"] else 0,
+            )
+            sim_gender = sf3.selectbox(
+                "Gender", ["Male", "Female"],
+                index=["Male", "Female"].index(cliente["gender"]) if cliente["gender"] in ["Male", "Female"] else 0,
+            )
+            sf4, sf5, sf6 = st.columns(3)
+            sim_age = sf4.number_input("Age", 18, 100, int(cliente["age"]))
+            sim_tenure = sf5.number_input("Tenure", 0, 20, int(cliente["tenure"]))
+            sim_num_products = sf6.number_input("Num of Products", 1, 4, int(cliente["num_of_products"]))
+            sf7, sf8 = st.columns(2)
+            sim_balance = sf7.number_input("Balance", 0.0, value=float(cliente["balance"]))
+            sim_salary = sf8.number_input("Estimated Salary", 0.0, value=float(cliente["estimated_salary"]))
+            sf9, sf10 = st.columns(2)
+            sim_has_card = sf9.checkbox("Has Credit Card", value=bool(cliente["has_cr_card"]))
+            sim_is_active = sf10.checkbox("Is Active Member", value=bool(cliente["is_active_member"]))
+            simular = st.form_submit_button("Simular")
+
+        if simular:
+            try:
+                sim_prediction = predecir(
+                    {
+                        "credit_score": int(sim_credit_score),
+                        "geography": sim_geography,
+                        "gender": sim_gender,
+                        "age": int(sim_age),
+                        "tenure": int(sim_tenure),
+                        "balance": float(sim_balance),
+                        "num_of_products": int(sim_num_products),
+                        "has_cr_card": bool(sim_has_card),
+                        "is_active_member": bool(sim_is_active),
+                        "estimated_salary": float(sim_salary),
+                    },
+                    customer_id=None,
+                )
+                churn_label_sim = "CHURN" if sim_prediction["churn_prediction"] == 1 else "NO CHURN"
+                st.write(
+                    f"Churn Probability: **{sim_prediction['churn_probability']:.1%}** · "
+                    f"Churn Prediction (threshold={sim_prediction['threshold_used']}): **{churn_label_sim}** · "
+                )
+                churn_type_emoji = {"softchurn": "🟢", "midchurn": "🟡", "hardchurn": "🔴"}
+                st.write(
+                    f"**ChurnType:** {churn_type_emoji.get(sim_prediction['churn_type'], '')} "
+                    f"`{sim_prediction['churn_type']}` → Economic Loss: **{sim_prediction['economic_loss']:,.0f} €**"
+                )
+                
+                st.divider()        
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Expected Avoided Loss", f"{sim_prediction['expected_avoided_loss']:,.2f} €")
+                c2.metric("Campaign Cost", f"{sim_prediction['campaign_cost']:,.2f} €")
+                c3.metric("Expected Net Profit", f"{sim_prediction['expected_net_profit']:,.2f} €")
+
+                if sim_prediction["campaign"]:
+                    st.success("✅ Recomendacion: ENVIAR CAMPAÑA (beneficio esperado positivo)")
+                else:
+                    st.warning("⛔ Recomendacion: NO enviar campaña (beneficio esperado negativo)")
+
+            except requests.RequestException as exc:
+                st.error(f"Error al llamar a /predict: {exc}")
 
 # ------------------------------------------------------------------
 # TAB 2: Explicabilidad

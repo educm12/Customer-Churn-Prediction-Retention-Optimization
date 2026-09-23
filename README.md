@@ -484,8 +484,14 @@ Generated reports and visualizations are stored in:
 reports/
 ```
 
+## 8. Ingest predictions into Postgres
 
-## 8. Run the Application
+
+```bash
+python -m src.data.ingest_predictions
+```
+
+## 9. Run the Application
 
 The application can be run either locally or entirely with Docker Compose.
 

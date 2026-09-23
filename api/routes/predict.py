@@ -5,7 +5,6 @@ from fastapi import APIRouter
 
 from api.schemas import PredictRequest, PredictionResponse
 from src.business.prediction_service import score_customer
-from src.data.predictions_repository import save_prediction
 
 router = APIRouter(tags=["predict"])
 
@@ -14,7 +13,4 @@ router = APIRouter(tags=["predict"])
 def predict(request: PredictRequest) -> PredictionResponse:
     features = request.model_dump(exclude={"customer_id"})
     prediction = score_customer(features, customer_id=request.customer_id)
-    # Si customer_id es None (cliente hipotetico) o no existe en la
-    # tabla `customers`, save_prediction lo maneja sin lanzar error.
-    save_prediction(prediction)
     return PredictionResponse(**prediction)
