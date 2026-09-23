@@ -25,7 +25,7 @@ _LATEST_PREDICTION_QUERY = text(
            expected_net_profit, campaign_recommendation
     FROM predictions
     WHERE customer_id = :customer_id
-    ORDER BY id DESC
+    ORDER BY prediction_id DESC
     LIMIT 1
     """
 )
